@@ -463,6 +463,7 @@ impl<'i> LineReader<'i> {
                 None => {
                     // Compute number of bytes in the last block (may be unpadded)
                     let base64_last_block_len = match base64_len % 4;
+                    println!("Base64 last block len: {}", base_64_last_block_len);
 
                     // Compute decoded length without the last block
                     let decoded_len = encoding::decoded_len(
