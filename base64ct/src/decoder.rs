@@ -457,39 +457,50 @@ impl<'i> LineReader<'i> {
                 // This is what the somewhat complex code below is doing.
                 None => {
                     // Compute number of bytes in the last block (may be unpadded)
+                    // Compute number of bytes in the last block (may be unpadded)
                     let base64_last_block_len = base64_len % 4;
-                    // Compute decoded length without the last block
-                    let decoded_len = encoding::decoded_len(
-                        base64_len
-                            .checked_sub(base64_last_block_len)
-                            .ok_or(InvalidLength)?,
-                    );
 
-                    // Compute the decoded length of the last block
-                    let mut out = [0u8; 3];
-                    let last_block_len = if line.len() < base64_last_block_len {
-                        let buffered_part_len = base64_last_block_len
-                            .checked_sub(line.len())
-                            .ok_or(InvalidLength)?;
+                    if base64_last_block_len == 0 {
+                        // No partial last block; compute decoded length directly
+                        let decoded_len = encoding::decoded_len(base64_len);
 
-                        let offset = 4usize.checked_sub(buffered_part_len).ok_or(InvalidLength)?;
-
-                        for i in 0..buffered_part_len {
-                            buffer[i] = buffer[offset.checked_add(i).ok_or(InvalidLength)?];
-                        }
-
-                        buffer[buffered_part_len..][..line.len()].copy_from_slice(line.remaining);
-                        let buffer_len = buffered_part_len
-                            .checked_add(line.len())
-                            .ok_or(InvalidLength)?;
-
-                        E::decode(&buffer[..buffer_len], &mut out)?.len()
+                        return Ok(decoded_len);
                     } else {
-                        let last_block = line.slice_tail(base64_last_block_len)?;
-                        E::decode(last_block, &mut out)?.len()
-                    };
+                        // Compute decoded length without the last block
+                        let decoded_len = encoding::decoded_len(
+                            base64_len
+                                .checked_sub(base64_last_block_len)
+                                .ok_or(InvalidLength)?,
+                        );
 
-                    return decoded_len.checked_add(last_block_len).ok_or(InvalidLength);
+                        // Compute the decoded length of the last block
+                        let mut out = [0u8; 3];
+                        let last_block_len = if line.len() < base64_last_block_len {
+                            let buffered_part_len = base64_last_block_len
+                                .checked_sub(line.len())
+                                .ok_or(InvalidLength)?;
+
+                            let offset =
+                                4usize.checked_sub(buffered_part_len).ok_or(InvalidLength)?;
+
+                            for i in 0..buffered_part_len {
+                                buffer[i] = buffer[offset.checked_add(i).ok_or(InvalidLength)?];
+                            }
+
+                            buffer[buffered_part_len..][..line.len()]
+                                .copy_from_slice(line.remaining);
+                            let buffer_len = buffered_part_len
+                                .checked_add(line.len())
+                                .ok_or(InvalidLength)?;
+
+                            E::decode(&buffer[..buffer_len], &mut out)?.len()
+                        } else {
+                            let last_block = line.slice_tail(base64_last_block_len)?;
+                            E::decode(last_block, &mut out)?.len()
+                        };
+
+                        return decoded_len.checked_add(last_block_len).ok_or(InvalidLength);
+                    }
                 }
             }
         }
